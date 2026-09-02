@@ -3,7 +3,13 @@ import { NextResponse } from 'next/server';
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const promptText = body.prompt || body.message || body.email || 'Write a professional email reply.';
+    
+    // Fallback to extract text from whatever field your frontend sends
+    const userText = body.prompt || body.email || body.message || body.text || '';
+
+    if (!userText) {
+      return NextResponse.json({ error: 'No prompt or email provided' }, { status: 400 });
+    }
 
     const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
@@ -12,8 +18,18 @@ export async function POST(req: Request) {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'openai/gpt-oss-20b',
-        messages: [{ role: 'user', content: promptText }],
+        model: 'llama-3.3-70b-versatile',
+        messages: [
+          { 
+            role: 'system', 
+            content: 'You are a helpful AI assistant. Draft a polite and professional email reply based on the input.' 
+          },
+          { 
+            role: 'user', 
+            content: userText 
+          }
+        ],
+        temperature: 0.7,
       }),
     });
 
