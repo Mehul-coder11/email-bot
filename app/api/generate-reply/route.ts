@@ -3,8 +3,6 @@ import { NextResponse } from 'next/server';
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    
-    // Fallback to extract text from whatever field your frontend sends
     const userText = body.prompt || body.email || body.message || body.text || '';
 
     if (!userText) {
@@ -18,11 +16,11 @@ export async function POST(req: Request) {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'llama-3.3-70b-versatile',
+        model: 'llama-3.1-8b-instant',
         messages: [
           { 
             role: 'system', 
-            content: 'You are a helpful AI assistant. Draft a polite and professional email reply based on the input.' 
+            content: 'You are an email assistant. Generate a clear, polite, and professional email response based on the input text provided.' 
           },
           { 
             role: 'user', 
