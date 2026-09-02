@@ -1,39 +1,33 @@
-import { generateText } from "ai"
-
-export const maxDuration = 30
-
-const SAMPLE_PROFILE = `Business: Bright Smile Dental Clinic
-Address: 123 Main Street, Springfield, IL 62704
-Phone: (555) 123-4567
-Hours: Mon-Fri 9am-5pm, Sat 10am-2pm, Sun Closed
-Pricing: New patient consultation $75, Cleaning $120, Whitening $300
-FAQs:
-Q: Do you accept insurance? A: Yes, we accept most major insurance plans.
-Q: Do you offer payment plans? A: Yes, we offer flexible monthly payment plans.`
+import { NextResponse } from 'next/server';
 
 export async function POST(req: Request) {
   try {
-    const { email } = (await req.json()) as { email?: string }
+    const body = await req.json();
+    const promptText = body.prompt || body.message || body.email || 'Write a professional email reply.';
 
-    if (!email || typeof email !== "string" || email.trim().length === 0) {
-      return Response.json({ error: "Please paste an email to respond to." }, { status: 400 })
+    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer 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`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'llama-3.1-8b-instant',
+        messages: [{ role: 'user', content: promptText }],
+      }),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      console.error('Groq API Error:', data);
+      return NextResponse.json({ error: data.error?.message || 'Groq API request failed' }, { status: response.status });
     }
 
-    const { text } = await generateText({
-      model: "meta/llama-3.1-8b",
-      system: `You are MailMind AI, an email assistant that writes replies on behalf of a business.
-Use ONLY the following business profile as your source of truth. If the answer is not in the profile, say you'll follow up.
-Write a warm, professional, concise reply. Do not invent facts. Sign off as "The Bright Smile Dental Clinic Team".
-
-BUSINESS PROFILE:
-${SAMPLE_PROFILE}`,
-      prompt: `Write a reply to this incoming customer email:\n\n${email}`,
-      temperature: 0.4,
-    })
-
-    return Response.json({ reply: text })
+    const replyText = data.choices?.[0]?.message?.content || '';
+    return NextResponse.json({ reply: replyText, text: replyText }, { status: 200 });
   } catch (err) {
-    console.error("[v0] generate-reply error:", err)
-    return Response.json({ error: "Something went wrong generating the reply. Please try again." }, { status: 500 })
+    console.error('Error handling request:', err);
+    return NextResponse.json({ error: 'Failed to generate response' }, { status: 500 });
   }
 }
