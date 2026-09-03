@@ -11,7 +11,7 @@ export default function LoginPage() {
   async function signIn() {
     setLoading(true); setError('')
     const supabase = createClient()
-    const { error } = await supabase.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: `${window.location.origin}/auth/callback?next=/dashboard`, scopes: 'https://www.googleapis.com/auth/gmail.modify' } })
+    const { error } = await supabase.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: `${window.location.origin}/auth/callback?next=/dashboard`, scopes: 'https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.send' } })
     if (error) { setError('Google sign-in could not start. Please try again.'); setLoading(false) }
     else router.refresh()
   }
