@@ -1,47 +1,32 @@
-import { NextResponse } from 'next/server';
+import { createClient } from '@/lib/supabase/server'
+import { groq } from '@ai-sdk/groq'
+import { generateText } from 'ai'
+import { z } from 'zod'
 
-export async function POST(req: Request) {
+const schema = z.object({ email: z.string().trim().min(5).max(12000), business: z.record(z.string(), z.string()).optional() })
+
+export async function POST(request: Request) {
   try {
-    const body = await req.json();
-    const userText = body.prompt || body.email || body.message || body.text || '';
-
-    if (!userText) {
-      return NextResponse.json({ error: 'No prompt or email provided' }, { status: 400 });
-    }
-
-    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer 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`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'openai/gpt-oss-20b',
-        messages: [
-          { 
-            role: 'system', 
-            content: 'You are an email assistant. Generate a clear, polite, and professional email response based on the input text provided.' 
-          },
-          { 
-            role: 'user', 
-            content: userText 
-          }
-        ],
-        temperature: 0.7,
-      }),
-    });
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      console.error('Groq API Error:', data);
-      return NextResponse.json({ error: data.error?.message || 'Groq API request failed' }, { status: response.status });
-    }
-
-    const replyText = data.choices?.[0]?.message?.content || '';
-    return NextResponse.json({ reply: replyText, text: replyText }, { status: 200 });
-  } catch (err) {
-    console.error('Error handling request:', err);
-    return NextResponse.json({ error: 'Failed to generate response' }, { status: 500 });
+    const parsed = schema.safeParse(await request.json())
+    if (!parsed.success) return Response.json({ error: 'Please provide a customer email.' }, { status: 400 })
+    if (!process.env.GROQ_API_KEY) return Response.json({ error: 'AI is not configured yet.' }, { status: 503 })
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return Response.json({ error: 'Please sign in to generate a reply.' }, { status: 401 })
+    const { data: profile } = await supabase.from('business_profiles').select('*').eq('user_id', user.id).maybeSingle()
+    const business = profile ?? parsed.data.business ?? {}
+    const context = Object.entries(business).filter(([key, value]) => key !== 'user_id' && value).map(([key, value]) => `${key}: ${value}`).join('\n') || 'No business profile provided.'
+    const result = await generateText({
+      model: groq(process.env.GROQ_MODEL || 'llama-3.1-8b-instant'),
+      system: `You write helpful business email replies. Never invent facts, prices, policies, or promises. Use only this business profile:\n${context}\nKeep the reply concise, warm, and ready to send. Return only the email body, without a subject line or analysis.`,
+      prompt: parsed.data.email,
+      maxOutputTokens: 450,
+      temperature: 0.4,
+    })
+    await supabase.from('reply_logs').insert({ user_id: user.id, subject: 'Test reply', customer_email: 'test@example.com', reply: result.text, status: 'test' })
+    return Response.json({ reply: result.text })
+  } catch (error) {
+    console.error('[v0] reply generation failed', error)
+    return Response.json({ error: 'Unable to generate a reply right now.' }, { status: 500 })
   }
 }
