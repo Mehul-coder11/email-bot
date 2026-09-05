@@ -17,7 +17,10 @@ export function GoogleButton({ size = 'default', className }: { size?: 'default'
     setError('')
     const { error: authError } = await createClient().auth.signInWithOAuth({
       provider: 'google',
-      options: { redirectTo: `${window.location.origin}/auth/callback?next=/dashboard` },
+      options: {
+        redirectTo: `${window.location.origin}/auth/callback?next=/dashboard`,
+        queryParams: { prompt: 'select_account' },
+      },
     })
     if (authError) {
       setError(authError.message.includes('provider is not enabled') ? 'Google sign-in is not enabled in Supabase yet.' : 'Google sign-in could not start. Please try again.')
